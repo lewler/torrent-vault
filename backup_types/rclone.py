@@ -6,7 +6,7 @@ class RcloneBackup():
         pass
 
     def backup(self, source, destination):
-        rclone_command = f"rclone copy '{source}' '{destination}' --progress"
+        rclone_command = f"rclone copy \"{source}\" \"{destination}\" --progress"
         os.system(rclone_command)
 
     def current_content(self, remote):
