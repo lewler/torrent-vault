@@ -6,6 +6,7 @@ trackers:
     backup: true # Backup torrents
     tag: true # Tag torrent in client
     ask: true # Ask before backing up
+    resend: false # Resend torrents that are already backed up
     headers:
       Authorization: Bearer awesomesecretapikey # Your API key
       Content-Type: application/json

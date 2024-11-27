@@ -82,9 +82,12 @@ class TorrentVault:
     def store_torrent(self, tracker:dict, torrent_path:str, torrent_name:str, current_files:dict):
         tracker_name = tracker.get("name", None)
         tracker_ask = tracker.get("ask", True)
-        if self.backup_type == "rclone" and (not current_files or torrent_name not in current_files):
+        tracker_resend = tracker.get("resend", False)
+        if self.backup_type == "rclone" and ((not current_files or torrent_name not in current_files) or tracker_resend):
             item_size = self.get_size(torrent_path)
             if not tracker_ask or input(f"Torrent {torrent_name} ({round(item_size / 1024 / 1024 / 1024, 2)}GB) is not in the remote. Backup? (y/N)").lower() == 'y':
+                if not tracker_ask:
+                    print(f"Backing up {torrent_name} ({round(item_size / 1024 / 1024 / 1024, 2)}GB)")
                 self.send_to_rclone(tracker_name, torrent_path)
 
     def parse(self, torrents:dict, client:str, tracker:dict):
