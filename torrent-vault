@@ -111,7 +111,7 @@ class TorrentVault:
             if client_label and tracker_tag:
                 self.client.set_label(client_torrent.get("hash"), client_label)
 
-    def fetch_all_pages(self, endpoint, headers=None, params=None):
+    def fetch_all_pages(self, endpoint:str, headers:dict=None, params:dict=None):
         all_data = []
 
         while endpoint:
