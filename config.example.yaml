@@ -1,13 +1,13 @@
 trackers:
   - name: site
     endpoint: https://site.com/api/torrents/filter
-    type: unit3d
-    client: rtorrent
+    type: unit3d # Tracker type. Supported types are: unit3d
+    client: rtorrent # Client type. Supported clients are: rtorrent
     backup: true # Backup torrents
     tag: true # Tag torrent in client
     ask: true # Ask before backing up
     headers:
-      Authorization: Bearer awesomesecretapikey
+      Authorization: Bearer awesomesecretapikey # Your API key
       Content-Type: application/json
       Accept: application/json
     params:
@@ -15,7 +15,7 @@ trackers:
       sortDirection: asc
       uploader: coolseeder # Your username
 backup:
-  type: rclone
+  type: rclone # Backup type. Supported types are: rclone
   base_path: 'remote:and/a/path/' # Remote path
 clients:
   rtorrent:
