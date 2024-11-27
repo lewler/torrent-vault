@@ -1,0 +1,24 @@
+trackers:
+  - name: site
+    endpoint: https://site.com/api/torrents/filter
+    type: unit3d
+    client: rtorrent
+    backup: true # Backup torrents
+    tag: true # Tag torrent in client
+    ask: true # Ask before backing up
+    headers:
+      Authorization: Bearer awesomesecretapikey
+      Content-Type: application/json
+      Accept: application/json
+    params:
+      sortField: name
+      sortDirection: asc
+      uploader: coolseeder # Your username
+backup:
+  type: rclone
+  base_path: 'remote:and/a/path/' # Remote path
+clients:
+  rtorrent:
+    socket: /var/run/user/.rtorrent.sock # rtorrent socket
+    path: /home/user/torrents/rtorrent/ # rtorrent download path
+    label: my-uploads # rtorrent label to apply

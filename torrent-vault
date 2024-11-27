@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+
+import requests
+import yaml
+import os
+from clients.rtorrent import RtorrentClient
+from backup_types.rclone import RcloneBackup
+
+class TorrentVault:
+    def __init__(self):
+        self.client = None
+        try:        
+            with open("config.yaml", "r") as config_file:
+                self.config = yaml.safe_load(config_file)
+        except FileNotFoundError:
+            print("config.yaml not found")
+            exit(1)
+
+        self.backup_type = self.config.get("backup", {}).get("type", "rclone")
+        self.backuper = None
+        if self.backup_type == "rclone":
+            self.backuper = RcloneBackup()
+
+    def get_size(self, start_path:str):
+        """ Get size of a file or total size of a directory. """
+        if os.path.isfile(start_path):
+            return os.path.getsize(start_path)
+        total_size = 0
+        for dirpath, dirnames, filenames in os.walk(start_path):
+            for f in filenames:
+                fp = os.path.join(dirpath, f)
+                if os.path.exists(fp):
+                    total_size += os.path.getsize(fp)
+        return total_size
+
+    def get_torrents(self, client:str):
+        torrents = None
+        if client == "rtorrent":
+            socket = self.config.get("clients", {}).get("rtorrent", {}).get("socket")
+            self.client = RtorrentClient(socket)
+            torrents = self.client.get_torrents()
+
+        if not torrents:
+            print("No torrents found in client")
+            exit(1)
+
+        return torrents
+    
+    def find_client_torrent(self, client_torrents:dict, info_hash:str):
+        for client_torrent in client_torrents:
+            if client_torrent.get("hash").lower() == info_hash:
+                return client_torrent
+        return None
+    
+    def get_torrent_path(self, client:str, torrent:dict):
+        client_path = self.config.get("clients", {}).get(client, {}).get("path")
+        torrent_path = client_path + torrent.get("name")
+        if not os.path.exists(torrent_path):
+            return None
+        return torrent_path
+    
+    def get_remote_path(self, tracker_name:str, torrent_path:str=None):
+        base_path = self.config.get("backup", {}).get("base_path", None)
+        if not base_path:
+            print("Base path for rclone not found, check your config")
+            exit(1)
+        target_path = base_path + tracker_name
+        if not torrent_path:
+            return target_path
+        if os.path.isdir(torrent_path):
+            target_path += "/" + os.path.basename(torrent_path)
+        return target_path
+    
+    def send_to_rclone(self, tracker_name:str, torrent_path:str):
+        target_path = self.get_remote_path(tracker_name, torrent_path)
+        self.backuper.backup(torrent_path, target_path)
+
+    def get_existing_files(self, tracker_name:str):
+        remote_path = self.get_remote_path(tracker_name)
+        return self.backuper.current_content(remote_path)
+    
+    def store_torrent(self, tracker:dict, torrent_path:str, torrent_name:str, current_files:dict):
+        tracker_name = tracker.get("name", None)
+        tracker_ask = tracker.get("ask", True)
+        if self.backup_type == "rclone" and (not current_files or torrent_name not in current_files):
+            item_size = self.get_size(torrent_path)
+            if not tracker_ask or input(f"Torrent {torrent_name} ({round(item_size / 1024 / 1024 / 1024, 2)}GB) is not in the remote. Backup? (y/N)").lower() == 'y':
+                self.send_to_rclone(tracker_name, torrent_path)
+
+    def parse(self, torrents:dict, client:str, tracker:dict):
+        tracker_name = tracker.get("name", None)
+        tracker_backup = tracker.get("backup", False)
+        tracker_tag = tracker.get("tag", False)
+        client_torrents = self.get_torrents(client)
+        client_label = self.config.get("clients", {}).get(client, {}).get("label")
+        current_files = self.get_existing_files(tracker_name)
+
+        for torrent in torrents:
+            info_hash = torrent.get("attributes", {}).get("info_hash")
+            if not info_hash:
+                continue
+            info_hash = bytes.fromhex(info_hash).decode()
+            client_torrent = self.find_client_torrent(client_torrents, info_hash)
+            if not client_torrent:
+                continue
+            torrent_path = self.get_torrent_path(client, client_torrent)
+            if not torrent_path:
+                continue
+            if tracker_backup:
+                self.store_torrent(tracker, torrent_path, client_torrent.get("name"), current_files)
+            if client_label and tracker_tag:
+                self.client.set_label(client_torrent.get("hash"), client_label)
+
+    def fetch_all_pages(self, endpoint, headers=None, params=None):
+        all_data = []
+
+        while endpoint:
+            response = requests.get(endpoint, headers=headers, params=params)
+            response.raise_for_status()
+            data = response.json()
+
+            all_data.extend(data.get("data", []))
+
+            endpoint = data.get("links", {}).get("next")
+
+        return all_data
+
+    def main(self):
+        for tracker in self.config["trackers"]:
+            tracker_name = tracker.get("name", None)
+            if not tracker_name:
+                print("Tracker name not found, check your config")
+                exit(1)
+            endpoint = tracker.get("endpoint", None)
+            if not endpoint:
+                print("Endpoint not found, check your config")
+                exit(1)
+            answer = input(f"Parse {tracker_name}? (Y/n): ")
+            if answer.lower() != 'y' and answer.lower() != '':
+                continue
+            headers = tracker.get("headers", {})
+            params = tracker.get("params", {})
+            all_data = self.fetch_all_pages(endpoint, headers, params)
+            self.parse(all_data, tracker.get("client", "rtorrent"), tracker)
+
+if __name__ == "__main__":
+    TorrentVault().main()
