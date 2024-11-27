@@ -73,7 +73,7 @@ Run the script using the command line interface:
 python torrent-vault
 ```
 
-Note that if your on Linux, you should be able to run the script in this way:
+Note that if you're on Linux, you should be able to run the script in this way:
 ```sh
 chmod +x torrent-vault
 ./torrent-vault
